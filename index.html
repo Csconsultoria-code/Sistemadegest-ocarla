@@ -617,7 +617,7 @@ function vDocumentos(){
     h+='<button class="cc" data-act="opencli" data-id="'+c.id+'"><b>📁 '+esc(c.nome)+'</b><div class="m">'+esc(c.servico||'')+'</div><div class="f"><span>'+nd.length+' arquivo'+(nd.length===1?'':'s')+'</span><span>'+(ult?'último em '+fdate(ult):'vazia')+'</span></div></button>'});
   return h+'</div>';
 }
-function backupCard(){return '<div class="card" style="margin-top:14px"><h2>Dados e backup</h2><p class="note" style="margin:0">Os dados ficam salvos no servidor e aparecem em qualquer aparelho depois do login. Baixe um backup de vez em quando por segurança. Importar um backup substitui todos os dados atuais.</p><div class="bk"><button class="btn" data-act="export">Baixar backup</button><button class="btn" data-act="import">Importar dados</button></div></div>'}
+function backupCard(){return '<div class="card" style="margin-top:14px"><h2>Dados e backup</h2><p class="note" style="margin:0">Os dados ficam salvos no servidor e aparecem em qualquer aparelho depois do login. Baixe um backup de vez em quando por segurança. Importar um backup substitui todos os dados atuais.</p><div class="bk"><button class="btn" data-act="export">Baixar backup</button><button class="btn" data-act="import">Importar dados</button></div></div><div class="card" style="margin-top:14px"><h2>Trocar senha</h2><p class="note" style="margin:0 0 8px">Use uma senha forte, com pelo menos 10 caracteres.</p><div class="fld"><label for="sa">Senha atual</label><input id="sa" type="password" autocomplete="current-password"></div><div class="fld"><label for="sn">Nova senha</label><input id="sn" type="password" autocomplete="new-password"></div><div class="bk"><button class="btn" data-act="senha">Trocar senha</button></div></div>'}
 function vServicos(){
   var m=S.metas||{},meta=metaMensal();
   var h='<div class="top"><h1>Serviços e metas</h1><button class="btn pri" data-act="newserv">Novo serviço</button></div>';
@@ -673,7 +673,7 @@ document.addEventListener('click',function(e){
     newcli:function(){formCliente()},opencli:function(){openCliente(id)},editcli:function(){formCliente(byId(S.clientes,openId))},
     newserv:function(){formServico()},editserv:function(){formServico(byId(S.servicos,id))},editmetas:formMetas,
     close:closeDrawer,
-    export:saveBackup,import:function(){var f=$('#bkfile');if(f)f.click()},
+    senha:function(){var a=$('#sa').value,n=$('#sn').value;apiCall('senha',{atual:a,nova:n}).then(function(j){if(j.ok){$('#sa').value='';$('#sn').value='';toast('Senha trocada')}else toast(j.erro||'Não foi possível trocar a senha')})},export:saveBackup,import:function(){var f=$('#bkfile');if(f)f.click()},
     upload:function(){var f=$('#fileinp');if(f)f.click()},
     addlink:function(){addLink(openId)},
     deldoc:function(){var d=byId(S.documentos,id);if(!d)return;if(t.dataset.sure){delDoc(d)}else{t.dataset.sure='1';t.textContent='Confirmar?'}}
