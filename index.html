@@ -1,5 +1,9 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Sistema da Carla</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Public+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: menu lateral fixo no desktop, barra de abas no celular; um painel por seção. */
@@ -19,6 +23,9 @@
   --accent:#4FC3AA; --accent-ink:#0F1A1B; --accent-soft:#1D3A36; --bar2:#2F6B60;
   --warn:#E2A648; --warn-soft:#3A2E17; --bad:#EE7B6D; --bad-soft:#40201C; --good:#6BCB92; --good-soft:#1B3527; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0}
+img{max-width:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;line-height:1.15}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -42,6 +49,7 @@ main{min-width:0}
 .range{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .range label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
 .range input{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.bk{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .mt td,.mt th{padding:7px 10px;font-size:13px}
 .mt tr.on td{background:var(--accent-soft)}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500}
@@ -138,6 +146,8 @@ svg text{fill:var(--muted);font-family:var(--f-body);font-size:11px}
 .login .btn{width:100%;margin-top:6px;padding:10px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 </style>
+</head>
+<body>
 
 <div class="shell">
   <nav class="side" id="nav" aria-label="Seções"></nav>
@@ -145,6 +155,7 @@ svg text{fill:var(--muted);font-family:var(--f-body);font-size:11px}
 </div>
 <div id="layer"></div>
 <div id="toast" class="toast" hidden></div>
+<input type="file" id="bkfile" accept="application/json,.json" hidden>
 
 <script>
 (function(){
@@ -167,6 +178,44 @@ function loginHtml(err){return '<form class="login" id="login" autocomplete="off
   +'<div class="fld"><label for="lu">Usuário</label><input id="lu" autocapitalize="off" autocomplete="username"></div>'
   +'<div class="fld"><label for="lp">Senha</label><input id="lp" type="password" autocomplete="current-password"></div>'
   +(err?'<div class="err">'+esc(err)+'</div>':'')+'<button class="btn pri" type="submit">Entrar</button></form>'}
+
+
+/* ---------- banco local (esta versão guarda os dados no navegador) ---------- */
+var STANDALONE=true;
+function localDb(){
+  var KEY='carla_db_v1',data={},ls={};
+  try{data=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){data={}}
+  function persist(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){toast('Não foi possível salvar neste navegador.')}}
+  function emit(c){(ls[c]||[]).slice().forEach(function(f){f()})}
+  function listen(c,f){(ls[c]=ls[c]||[]).push(f);setTimeout(f,0)}
+  function snapDocs(c){var o=data[c]||{};return Object.keys(o).map(function(id){var v=o[id];return{id:id,exists:true,data:function(){return v}}})}
+  function newId(){return 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+  function docRef(c,id){return{
+    update:function(d){var cur=(data[c]||{})[id];if(!cur)return Promise.reject(new Error('registro não encontrado'));data[c][id]=Object.assign({},cur,d);persist();emit(c);return Promise.resolve()},
+    set:function(d){(data[c]=data[c]||{})[id]=d;persist();emit(c);return Promise.resolve()},
+    delete:function(){if(data[c])delete data[c][id];persist();emit(c);return Promise.resolve()}}}
+  return{
+    collection:function(c){return{
+      onSnapshot:function(cb){listen(c,function(){cb({docs:snapDocs(c)})});return function(){}},
+      add:function(d){var id=newId();(data[c]=data[c]||{})[id]=d;persist();emit(c);return Promise.resolve({id:id})},
+      doc:function(id){return docRef(c,id)}}},
+    doc:function(p){var a=p.split('/'),c=a[0],id=a[1];var r=docRef(c,id);r.onSnapshot=function(cb){listen(c,function(){var v=(data[c]||{})[id];cb(v?{exists:true,data:function(){return v}}:{exists:false})})};return r},
+    exportJson:function(){return JSON.stringify({app:'sistema-da-carla',versao:1,exportado:new Date().toISOString(),dados:data})},
+    importJson:function(txt){var o=JSON.parse(txt);if(!o||o.app!=='sistema-da-carla'||!o.dados)throw new Error('Arquivo inválido');data=o.dados;persist();Object.keys(ls).forEach(emit)},
+    hasData:function(){return Object.keys(data).some(function(c){return Object.keys(data[c]||{}).length>0})}
+  };
+}
+function saveBackup(){
+  var txt=db.exportJson();var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));
+  a.download='dados-sistema-carla-'+todayISO()+'.json';document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500);toast('Backup baixado');
+}
+function importBackup(file){
+  var rd=new FileReader();
+  rd.onload=function(){try{db.importJson(String(rd.result));toast('Dados importados');S.view='painel';render()}catch(e){toast('Arquivo não reconhecido. Use um backup baixado deste sistema.')}};
+  rd.readAsText(file);
+}
 
 /* ---------- utilidades ---------- */
 function $(s){return document.querySelector(s)}
@@ -351,6 +400,7 @@ function drawer(){
   h+='<div class="toolbar" style="justify-content:flex-start"><select id="doccat" class="search" style="width:auto">'+DOC_CATS.map(function(x){return '<option'+(x===S.docCat?' selected':'')+'>'+x+'</option>'}).join('')+'</select>'
     +(assets?'<button class="btn pri" data-act="upload">Enviar arquivo</button><input type="file" id="fileinp" multiple hidden>':'')
     +'<button class="btn" data-act="addlink">Adicionar link</button></div>';
+  if(!assets)h+='<p class="note" style="margin:0 0 8px">Nesta versão não dá para enviar arquivos. Guarde o documento no Google Drive e cole o link aqui.</p>';
   if(assets)h+='<p class="note" style="margin:0 0 8px">Aceita PDF, imagens, texto e CSV, até 20 MB. Para Word ou Excel, salve como PDF ou adicione o link do Drive.</p>';
   if(!ds.length)h+='<div class="empty">Nenhum documento ainda. Envie o contrato, a proposta ou os comprovantes deste cliente.</div>';
   ds.forEach(function(d){h+='<div class="doc"><span class="ty">'+esc(docTy(d))+'</span><div><a href="'+esc(docHref(d))+'" target="_blank" rel="noopener">'+esc(d.nome)+'</a><div class="m">'+esc(d.categoria||'Outro')+' · '+fdate(d.data)+(d.tamanho?' · '+fsize(d.tamanho):'')+'</div></div><button class="btn sm bad" data-act="deldoc" data-id="'+d.id+'">Remover</button></div>'});
@@ -550,6 +600,7 @@ function vDocumentos(){
     h+='<button class="cc" data-act="opencli" data-id="'+c.id+'"><b>📁 '+esc(c.nome)+'</b><div class="m">'+esc(c.servico||'')+'</div><div class="f"><span>'+nd.length+' arquivo'+(nd.length===1?'':'s')+'</span><span>'+(ult?'último em '+fdate(ult):'vazia')+'</span></div></button>'});
   return h+'</div>';
 }
+function backupCard(){return '<div class="card" style="margin-top:14px"><h2>Dados e backup</h2><p class="note" style="margin:0">Os dados ficam salvos neste navegador, neste aparelho. Baixe um backup com frequência. Para usar em outro aparelho, importe o backup lá.</p><div class="bk"><button class="btn" data-act="export">Baixar backup</button><button class="btn" data-act="import">Importar dados</button></div></div>'}
 function vServicos(){
   var m=S.metas||{},meta=metaMensal();
   var h='<div class="top"><h1>Serviços e metas</h1><button class="btn pri" data-act="newserv">Novo serviço</button></div>';
@@ -558,7 +609,7 @@ function vServicos(){
   else h+='<div class="kpis" style="margin:0"><div class="kpi"><div class="l">Base '+esc(m.ano||'')+'</div><div class="v">'+brl(m.base)+'</div></div><div class="kpi"><div class="l">Meta anual</div><div class="v">'+brl(m.base*(m.fator||10))+'</div></div><div class="kpi"><div class="l">Por mês</div><div class="v">'+brl(meta)+'</div></div><div class="kpi"><div class="l">Por semana</div><div class="v">'+brl(meta*12/52)+'</div></div><div class="kpi"><div class="l">Por dia útil</div><div class="v">'+brl(meta*12/240)+'</div><div class="s">240 dias úteis no ano</div></div></div>';
   h+='</div>';
   h+='<div class="card"><h2>Estrutura de entrega <span class="hint">projeção se vender a quantidade planejada</span></h2>';
-  if(!S.servicos.length)return h+'<div class="empty">Nenhum serviço cadastrado.</div></div>';
+  if(!S.servicos.length)return h+'<div class="empty">Nenhum serviço cadastrado.</div></div>'+backupCard();
   var tm=0,ta=0;
   h+='<div class="tbl" style="border:0"><table><thead><tr><th>Serviço</th><th class="n">Ticket</th><th class="n">Qtd/mês</th><th class="n">Total/mês</th><th class="n">Custo/hora</th><th>Recorrência</th><th class="n">Total/ano</th></tr></thead><tbody>';
   S.servicos.slice().sort(function(a,b){return (b.ticket*b.qtdMes||0)-(a.ticket*a.qtdMes||0)}).forEach(function(s){
@@ -566,7 +617,9 @@ function vServicos(){
     h+='<tr class="click" data-act="editserv" data-id="'+s.id+'"><td>'+esc(s.nome)+'</td><td class="n">'+brl(s.ticket)+'</td><td class="n">'+(s.qtdMes||0)+'</td><td class="n">'+brl(mes)+'</td><td class="n">'+(s.custoHora?brl(s.custoHora):'—')+'</td><td>'+esc(s.recorrencia||'')+'</td><td class="n">'+brl(ano)+'</td></tr>'});
   h+='<tr><td><b>Total</b></td><td></td><td></td><td class="n"><b>'+brl(tm)+'</b></td><td></td><td></td><td class="n"><b>'+brl(ta)+'</b></td></tr></tbody></table></div>';
   if(meta>0)h+='<p class="note" style="margin-top:10px">Esta estrutura cobre '+(tm/meta*100).toFixed(0)+'% da meta mensal.</p>';
-  return h+'</div>';
+  h+='</div>';
+  h+=backupCard();
+  return h;
 }
 
 /* ---------- render ---------- */
@@ -575,7 +628,7 @@ function render(){
   if(!S.auth){var cur=document.getElementById('login');if(!cur){$('#nav').innerHTML='';$('#main').innerHTML=loginHtml();var u=$('#lu');if(u)u.focus()}return}
   $('#nav').innerHTML='<div class="brand">Sistema da Carla<small>Financeiro, leads e clientes</small></div>'+NAV.map(function(n){return '<button data-act="nav" data-v="'+n[0]+'"'+(S.view===n[0]?' aria-current="page"':'')+'>'+n[1]+'</button>'}).join('')+'<button data-act="logout">Sair</button>';
   var v={painel:vPainel,financeiro:vFinanceiro,leads:vLeads,clientes:vClientes,documentos:vDocumentos,servicos:vServicos}[S.view]();
-  var banner=S.noDb?'<div class="banner">Os dados não carregaram'+(S.why?' ('+esc(S.why)+')':'')+'. Atualize a página. Se continuar, abra o sistema logada na sua conta do Claude.</div>':S.err?'<div class="banner">Não foi possível ler os dados agora ('+esc(S.err)+'). Atualize a página.</div>':(!S.ready?'<div class="banner" style="background:var(--accent-soft);color:var(--accent)">Carregando seus dados…</div>':'');
+  var banner=(!db.hasData()?'<div class="banner">Este navegador ainda não tem dados. Use <b>Importar dados</b> e escolha o arquivo de backup que você recebeu. <button class="btn sm" data-act="import" style="margin-left:8px">Importar dados</button></div>':'')+(S.noDb?'<div class="banner">Os dados não carregaram'+(S.why?' ('+esc(S.why)+')':'')+'. Atualize a página. Se continuar, abra o sistema logada na sua conta do Claude.</div>':S.err?'<div class="banner">Não foi possível ler os dados agora ('+esc(S.err)+'). Atualize a página.</div>':'');
   var main=$('#main'),st=window.scrollY,qf=document.activeElement&&document.activeElement.id==='q';
   main.innerHTML=banner+v;
   if(qf){var q=$('#q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}
@@ -602,6 +655,7 @@ document.addEventListener('click',function(e){
     newcli:function(){formCliente()},opencli:function(){openCliente(id)},editcli:function(){formCliente(byId(S.clientes,openId))},
     newserv:function(){formServico()},editserv:function(){formServico(byId(S.servicos,id))},editmetas:formMetas,
     close:closeDrawer,
+    export:saveBackup,import:function(){var f=$('#bkfile');if(f)f.click()},
     upload:function(){var f=$('#fileinp');if(f)f.click()},
     addlink:function(){addLink(openId)},
     deldoc:function(){var d=byId(S.documentos,id);if(!d)return;if(t.dataset.sure){delDoc(d)}else{t.dataset.sure='1';t.textContent='Confirmar?'}}
@@ -611,6 +665,7 @@ document.addEventListener('click',function(e){
 document.addEventListener('change',function(e){
   var t=e.target;if(t.id==='pfrom'){S.from=t.value;render();return}if(t.id==='pto'){S.to=t.value;render();return}if(t.dataset&&t.dataset.act==='stage'){e.stopPropagation();var l=byId(S.leads,t.dataset.id);var up={etapa:t.value};if(t.value==='Fechado'&&!(l&&l.dataFechamento))up.dataFechamento=todayISO();save('leads',t.dataset.id,up)}
 });
+document.addEventListener('change',function(e){if(e.target&&e.target.id==='bkfile'&&e.target.files[0]){importBackup(e.target.files[0]);e.target.value=''}});
 document.addEventListener('input',function(e){if(e.target.id==='q'){S.q=e.target.value;render()}});
 document.addEventListener('submit',function(e){
   if(!e.target||e.target.id!=='login')return;e.preventDefault();
@@ -625,17 +680,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'){var fl=$('#
 /* ---------- início ---------- */
 var d0=new Date();S.mes=d0.getFullYear()+'-'+pad(d0.getMonth()+1);S.mode='mes';S.ano=String(d0.getFullYear());S.from=S.ano+'-01-01';S.to=todayISO();
 render();
-function wait(ms){return new Promise(function(r){setTimeout(r,ms)})}
-(async function(){
-  try{
-    for(var i=0;i<40&&!(window.claude&&window.claude.use);i++)await wait(250);
-    if(!window.claude||!window.claude.use){S.noDb=true;S.why='conexão indisponível';render();return}
-    db=await window.claude.use('db');
-    if(!db){S.noDb=true;S.why='banco indisponível nesta visualização';render();return}
-    try{assets=await window.claude.use('assets')}catch(e){assets=null}
-    ['clientes','leads','receitas','despesas','servicos','documentos'].forEach(sub);
-    db.doc('config/metas').onSnapshot(function(s){S.metas=s.exists?s.data():{};schedule()},function(){});
-  }catch(e){console.error(e);S.noDb=true;S.why=(e&&(e.code||e.message))||'erro';render()}
+(function(){
+  db=localDb();assets=null;
+  ['clientes','leads','receitas','despesas','servicos','documentos'].forEach(sub);
+  db.doc('config/metas').onSnapshot(function(s){S.metas=s.exists?s.data():{};schedule()},function(){});
 })();
 })();
 </script>
+
+</body>
+</html>
