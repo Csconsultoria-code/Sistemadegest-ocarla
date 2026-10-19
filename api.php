@@ -41,6 +41,30 @@ if ($a === 'login' && $metodo === 'POST') {
     json_out(['ok' => true, 'csrf' => $_SESSION['csrf']]);
 }
 
+if ($a === 'semear' && $metodo === 'POST') {
+    // TEMPORÁRIO: carga inicial. Só funciona enquanto o banco de dados está vazio.
+    if (!hash_equals('04be1f5b1b4f98665c9f1fbd2b59b1312358b0b46a23f64c', $_SERVER['HTTP_X_SEMENTE'] ?? '')) json_out(['ok' => false, 'erro' => 'Não encontrado.'], 404);
+    $j = corpo_json();
+    $pdo = db();
+    if ((int)$pdo->query('SELECT COUNT(*) n FROM docs')->fetch()['n'] > 0) json_out(['ok' => false, 'erro' => 'O banco já tem dados.'], 409);
+    $dados = $j['dados'] ?? null;
+    if (!is_array($dados)) json_out(['ok' => false, 'erro' => 'Arquivo inválido.'], 400);
+    $pdo->beginTransaction();
+    $ins = $pdo->prepare('INSERT INTO docs (c, id, d) VALUES (?, ?, ?)');
+    $n = 0;
+    foreach ($dados as $c => $docs) {
+        if (!in_array($c, COLECOES, true) || !is_array($docs)) { $pdo->rollBack(); json_out(['ok' => false, 'erro' => 'Coleção inválida.'], 400); }
+        foreach ($docs as $id => $d) {
+            $id = (string)$id;
+            if (!id_valido($id) || !doc_valido($d)) { $pdo->rollBack(); json_out(['ok' => false, 'erro' => 'Registro inválido.'], 400); }
+            $ins->execute([$c, $id, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+            $n++;
+        }
+    }
+    $pdo->commit();
+    json_out(['ok' => true, 'total' => $n]);
+}
+
 if ($a === 'logout' && $metodo === 'POST') {
     exigir_csrf();
     $_SESSION = [];
