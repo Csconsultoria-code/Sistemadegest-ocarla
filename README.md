@@ -1,25 +1,23 @@
 # Sistema da Carla
 
-Sistema simples de gestão: financeiro (receitas e despesas), leads, clientes, serviços e meta 10x.
+Sistema de gestão: financeiro (receitas e despesas), leads, clientes, serviços e meta 10x.
 
-Página única (`index.html`), sem servidor. Funciona publicada no GitHub Pages.
+Versão para hospedagem com PHP (Hostinger): login no servidor e dados em banco SQLite.
+**Este repositório não contém dados de clientes nem senhas.**
 
-## Como os dados são guardados
+## Como funciona
 
-Os dados ficam no navegador de quem usa, neste aparelho. Não há banco de dados online.
+- `index.html`: o sistema (tela e regras).
+- `api.php` / `lib.php`: login com sessão, proteção CSRF, limite de tentativas e gravação dos dados.
+- `instalar.php`: tela de instalação, usada uma única vez para criar o usuário e a senha.
+- Os dados ficam em `carla-dados/carla.sqlite`, uma pasta criada **fora** da pasta pública do site (se o servidor não permitir, em `dados/`, bloqueada por `.htaccess`).
 
-- Em **Serviços e metas > Dados e backup**, use **Baixar backup** com frequência.
-- Para abrir em outro aparelho ou navegador, use **Importar dados** com o arquivo de backup.
-- Limpar os dados do navegador apaga o sistema. Mantenha sempre um backup.
+## Instalação
 
-## Dados iniciais
+1. Publique estes arquivos numa pasta do site (ex.: `public_html/carla`).
+2. Abra `https://seusite/carla/instalar.php` e escolha usuário e senha (mínimo 10 caracteres).
+3. Entre no sistema e use **Serviços e metas > Importar dados** para carregar um backup (`.json`).
 
-O `index.html` já traz os dados de 17/10/2026 (clientes, receitas, despesas, leads, serviços e meta). Na primeira abertura em cada navegador, eles são carregados sozinhos. Depois disso, cada aparelho guarda as suas próprias alterações.
+## Backup
 
-Atenção: o repositório é público, então esses dados (nomes, telefones, e-mails e valores) ficam visíveis para quem abrir o código.
-
-## Segurança
-
-- A tela de login é só uma trava de tela. Qualquer pessoa que abra o código consegue contorná-la, e os dados ficam no navegador de cada aparelho.
-- Arquivos de backup (`dados-*.json`) são bloqueados pelo `.gitignore`.
-- Esta versão não envia arquivos. Em cada cliente, guarde o link do documento no Google Drive.
+Em **Serviços e metas > Dados e backup**, use **Baixar backup**. Guarde o arquivo fora do repositório (`dados-*.json` está no `.gitignore`).
